@@ -2,9 +2,11 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
+import os
+
 class WhoisCache:
-    def __init__(self, db_path: str = "whois_cache.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        self.db_path = db_path or os.getenv("DB_PATH", "whois_cache.db")
         self._init_db()
 
     def _init_db(self):
