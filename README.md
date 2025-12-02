@@ -32,19 +32,15 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
-    environment:
-      # Database path inside the container
-      - DB_PATH=/app/data/whois_cache.db
+    ports:
+      - "8000:8000"
     volumes:
       # Data persistence (WHOIS cache)
-      - ./gptkit_data:/app/data
+      - gptkit_data:/app/data
+
+volumes:
+  gptkit_data:
 ```
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|--------|
-| `DB_PATH` | Path to the SQLite database file | `whois_cache.db` |
 
 ## Development
 
