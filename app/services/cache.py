@@ -5,8 +5,9 @@ from typing import Optional, Dict, Any
 import os
 
 class WhoisCache:
-    def __init__(self, db_path: str = None):
-        self.db_path = db_path or os.getenv("DB_PATH", "whois_cache.db")
+    def __init__(self):
+        self.db_path = "data/whois_cache.db"
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._init_db()
 
     def _init_db(self):
