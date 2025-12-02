@@ -32,10 +32,8 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
-    ports:
-      - "8000:8000"
     volumes:
-      # Data persistence (WHOIS cache)
+      # Data persistence (WHOIS cache stored in /app/data/whois_cache.db)
       - gptkit_data:/app/data
 
 volumes:
