@@ -6,6 +6,12 @@ pyproject.toml
 ./app/services/cache.py
 ./app/services/rate_limiter.py
 ./app/services/whois.py
+app/__init__.py
+app/main.py
+app/routers/domain.py
+app/services/cache.py
+app/services/rate_limiter.py
+app/services/whois.py
 gptkit.egg-info/PKG-INFO
 gptkit.egg-info/SOURCES.txt
 gptkit.egg-info/dependency_links.txt
