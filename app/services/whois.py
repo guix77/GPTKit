@@ -11,7 +11,7 @@ class WhoisService:
         try:
             # Using -H to suppress legal disclaimers if possible, but standard whois usually just works
             result = subprocess.run(
-                ["whois", domain],
+                ["whois", "-h", "whois.verisign-grs.com", domain],
                 capture_output=True,
                 text=True,
                 timeout=self.timeout
