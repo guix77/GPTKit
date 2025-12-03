@@ -46,12 +46,16 @@
                   "type": "object",
                   "properties": {
                     "domain": { "type": "string" },
+                    "checked_at": { "type": "string", "format": "date-time" },
                     "tld": { "type": "string" },
                     "available": { "type": "boolean" },
-                    "checked_at": { "type": "string", "format": "date-time" },
-                    "raw": { "type": "string" }
+                    "pendingDelete": { "type": "boolean" },
+                    "redemptionPeriod": { "type": "boolean" },
+                    "statut": { "type": "string", "nullable": true },
+                    "creation_date": { "type": "string", "nullable": true },
+                    "registrar": { "type": "string", "nullable": true }
                   },
-                  "required": ["domain", "tld", "available", "checked_at", "raw"]
+                  "required": ["domain", "checked_at", "tld", "available", "pendingDelete", "redemptionPeriod"]
                 }
               }
             }
