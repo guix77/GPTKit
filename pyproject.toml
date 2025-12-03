@@ -7,7 +7,7 @@ name = "gptkit"
 version = "1.0.0"
 description = "Backend for Custom GPT Actions"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dependencies = [
     "fastapi",
     "uvicorn[standard]",
