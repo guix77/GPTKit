@@ -51,8 +51,24 @@ volumes:
    ```bash
    uvicorn app.main:app --reload
    ```
-
 3. **Tests**:
-   ```bash
-   curl "http://localhost:8000/domain/whois?domain=example.com"
-   ```
+
+- Quick API smoke test (curl):
+  ```bash
+  curl "http://localhost:8000/domain/whois?domain=example.com"
+  ```
+
+- Run the unit test suite with pytest (from the project root):
+  ```bash
+  # activate your virtualenv if you have one, e.g.:
+  source venv/bin/activate
+
+  # install test/dev dependencies if needed
+  pip install -r requirements.txt
+
+  # run all tests
+  pytest -q
+
+  # run a single test file
+  pytest tests/test_whois_parsing.py -q
+  ```
