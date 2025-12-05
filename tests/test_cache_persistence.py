@@ -21,7 +21,7 @@ def test_cache_persistence(tmp_path):
     assert entry is not None
     # parsed fields should be present and match expectations
     assert entry.get("registrar") == "OVH sas"
-    assert entry.get("creation_date") == "2002-05-13T18:12:06Z"
-    assert entry.get("pendingDelete") in (0, 1, False, True)
+    assert entry.get("created_at") == "2002-05-13T18:12:06Z"
+    assert entry.get("pending_delete") in (0, 1, False, True)
     # Normalize to boolean check
-    assert bool(int(entry.get("pendingDelete"))) is False
+    assert bool(int(entry.get("pending_delete"))) is False
