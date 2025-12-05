@@ -72,8 +72,8 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
-    env_file:
-      - .env
+    environment:
+      - GPTKIT_BEARER_TOKEN=${GPTKIT_BEARER_TOKEN}
     volumes:
       # Data persistence (WHOIS cache stored in /app/data/whois_cache.db)
       - gptkit_data:/app/data
@@ -88,6 +88,8 @@ Create a `.env` file in the same directory as `docker-compose.yml` (see `.env.ex
 # .env (do not commit this file!)
 GPTKIT_BEARER_TOKEN=your-secret-token-here
 ```
+
+Docker Compose will automatically load variables from the `.env` file or from the host environment.
 
 > **Security**: Never commit the `.env` file to version control. It's already in `.gitignore`. Copy `.env.example` to `.env` and set your values.
 
