@@ -9,12 +9,27 @@
       "url": "https://gptkit.guillaumeduveau.com"
     }
   ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Bearer token authentication. Set GPTKIT_BEARER_TOKEN environment variable."
+      }
+    }
+  },
   "paths": {
     "/domain/whois": {
       "get": {
         "operationId": "whoisLookup",
         "summary": "WHOIS lookup for a domain",
         "description": "Check WHOIS information and availability status for a single domain.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "domain",
@@ -26,10 +41,21 @@
             }
           },
           {
-            "name": "force",
+            "name": "refresh",
             "in": "query",
             "required": false,
             "description": "If 1, bypass cache and force a fresh WHOIS lookup. Default is 0.",
+            "schema": {
+              "type": "integer",
+              "enum": [0, 1],
+              "default": 0
+            }
+          },
+          {
+            "name": "details",
+            "in": "query",
+            "required": false,
+            "description": "If 1, return detailed format with all keys including raw. Default is 0 (minimalist format).",
             "schema": {
               "type": "integer",
               "enum": [0, 1],
@@ -39,23 +65,55 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful WHOIS lookup",
+            "description": "Successful WHOIS lookup. Format depends on the 'details' parameter: minimalist format (default) or detailed format with all keys including raw.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "title": "MinimalistFormat",
+                      "description": "Minimalist format returned by default (when details=0 or not provided)",
+                      "properties": {
+                        "domain": { "type": "string", "description": "Domain name" },
+                        "available": { "type": "boolean", "description": "Availability status" },
+                        "created_at": { "type": "string", "nullable": true, "description": "Domain creation date, null if not available" }
+                      },
+                      "required": ["domain", "available"]
+                    },
+                    {
+                      "type": "object",
+                      "title": "DetailedFormat",
+                      "description": "Detailed format returned when details=1, includes all keys and raw WHOIS data",
+                      "properties": {
+                        "domain": { "type": "string" },
+                        "checked_at": { "type": "string", "format": "date-time" },
+                        "tld": { "type": "string" },
+                        "available": { "type": "boolean" },
+                        "pending_delete": { "type": "boolean" },
+                        "redemption_period": { "type": "boolean" },
+                        "statut": { "type": "string", "nullable": true },
+                        "created_at": { "type": "string", "nullable": true },
+                        "registrar": { "type": "string", "nullable": true },
+                        "raw": { "type": "string", "description": "Raw WHOIS data" }
+                      },
+                      "required": ["domain", "checked_at", "tld", "available", "pending_delete", "redemption_period", "raw"]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Missing or invalid Bearer token",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "domain": { "type": "string" },
-                    "checked_at": { "type": "string", "format": "date-time" },
-                    "tld": { "type": "string" },
-                    "available": { "type": "boolean" },
-                    "pendingDelete": { "type": "boolean" },
-                    "redemptionPeriod": { "type": "boolean" },
-                    "statut": { "type": "string", "nullable": true },
-                    "creation_date": { "type": "string", "nullable": true },
-                    "registrar": { "type": "string", "nullable": true }
+                    "detail": { "type": "string", "example": "Invalid or expired token" }
                   },
-                  "required": ["domain", "checked_at", "tld", "available", "pendingDelete", "redemptionPeriod"]
+                  "required": ["detail"]
                 }
               }
             }

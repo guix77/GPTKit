@@ -29,10 +29,10 @@ class WhoisCache:
                     checked_at TEXT,
                     raw TEXT,
                     statut TEXT,
-                    creation_date TEXT,
+                    created_at TEXT,
                     registrar TEXT,
-                    pendingDelete BOOLEAN,
-                    redemptionPeriod BOOLEAN
+                    pending_delete BOOLEAN,
+                    redemption_period BOOLEAN
                 )
             """)
 
@@ -67,13 +67,13 @@ class WhoisCache:
             from app.services.whois import parse_whois
             parsed = parse_whois(raw, tld)
         except Exception:
-            parsed = {"statut": None, "creation_date": None, "registrar": None, "pendingDelete": False, "redemptionPeriod": False}
+            parsed = {"statut": None, "created_at": None, "registrar": None, "pending_delete": False, "redemption_period": False}
 
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute("""
                     INSERT OR REPLACE INTO whois_cache
-                    (domain, tld, available, checked_at, raw, statut, creation_date, registrar, pendingDelete, redemptionPeriod)
+                    (domain, tld, available, checked_at, raw, statut, created_at, registrar, pending_delete, redemption_period)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -83,28 +83,30 @@ class WhoisCache:
                     checked_at,
                     raw,
                     parsed.get("statut"),
-                    parsed.get("creation_date"),
+                    parsed.get("created_at"),
                     parsed.get("registrar"),
-                    int(bool(parsed.get("pendingDelete"))),
-                    int(bool(parsed.get("redemptionPeriod")))
+                    int(bool(parsed.get("pending_delete"))),
+                    int(bool(parsed.get("redemption_period")))
                 ))
             logger.debug(f"Cache SET for domain: {domain} (checked_at: {checked_at})")
         except sqlite3.Error as e:
             logger.error(f"Cache error on set({domain}): {e}")
     def _migrate_if_needed(self):
-        """Detect missing expected columns, add them, and backfill parsed fields from raw."""
+        """Detect missing expected columns, add them, migrate old column names to new ones, and backfill parsed fields from raw."""
         EXPECTED = {
             "statut": "TEXT",
-            "creation_date": "TEXT",
+            "created_at": "TEXT",
             "registrar": "TEXT",
-            "pendingDelete": "BOOLEAN",
-            "redemptionPeriod": "BOOLEAN",
+            "pending_delete": "BOOLEAN",
+            "redemption_period": "BOOLEAN",
         }
 
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cur = conn.execute("PRAGMA table_info('whois_cache')")
                 existing = {row[1] for row in cur.fetchall()}  # column names
+                
+                # Add new columns if they don't exist
                 to_add = [(n, t) for n, t in EXPECTED.items() if n not in existing]
                 if to_add:
                     logger.info(f"Cache migration: adding columns: {[n for n, _ in to_add]}")
@@ -115,8 +117,30 @@ class WhoisCache:
                             logger.exception(f"Failed to add column {name}; continuing")
                     conn.commit()
 
+                # Migrate old column names to new ones if old columns exist
+                old_to_new = {
+                    "creation_date": "created_at",
+                    "pendingDelete": "pending_delete",
+                    "redemptionPeriod": "redemption_period",
+                }
+                
+                for old_col, new_col in old_to_new.items():
+                    if old_col in existing and new_col in existing:
+                        # Copy data from old column to new column where new column is NULL
+                        try:
+                            result = conn.execute(f"""
+                                UPDATE whois_cache 
+                                SET {new_col} = {old_col} 
+                                WHERE {new_col} IS NULL AND {old_col} IS NOT NULL
+                            """)
+                            if result.rowcount > 0:
+                                logger.info(f"Cache migration: migrated {result.rowcount} rows from {old_col} to {new_col}")
+                                conn.commit()
+                        except sqlite3.Error:
+                            logger.exception(f"Failed to migrate {old_col} to {new_col}; continuing")
+
                 # Backfill parsed fields for rows where raw is present and parsed columns are NULL/empty
-                sel = "SELECT domain, raw, tld FROM whois_cache WHERE raw IS NOT NULL AND (statut IS NULL OR creation_date IS NULL OR registrar IS NULL OR pendingDelete IS NULL OR redemptionPeriod IS NULL)"
+                sel = "SELECT domain, raw, tld FROM whois_cache WHERE raw IS NOT NULL AND (statut IS NULL OR created_at IS NULL OR registrar IS NULL OR pending_delete IS NULL OR redemption_period IS NULL)"
                 rows = conn.execute(sel).fetchall()
                 if rows:
                     logger.info(f"Cache migration: backfilling parsed fields for {len(rows)} rows")
@@ -127,17 +151,17 @@ class WhoisCache:
                     logger.exception("Could not import parse_whois for migration; skipping backfill")
                     return
 
-                upd = "UPDATE whois_cache SET statut = ?, creation_date = ?, registrar = ?, pendingDelete = ?, redemptionPeriod = ? WHERE domain = ?"
+                upd = "UPDATE whois_cache SET statut = ?, created_at = ?, registrar = ?, pending_delete = ?, redemption_period = ? WHERE domain = ?"
                 updated = 0
                 for domain, raw, tld in rows:
                     try:
                         parsed = parse_whois(raw, tld)
                         conn.execute(upd, (
                             parsed.get("statut"),
-                            parsed.get("creation_date"),
+                            parsed.get("created_at"),
                             parsed.get("registrar"),
-                            int(bool(parsed.get("pendingDelete"))),
-                            int(bool(parsed.get("redemptionPeriod"))),
+                            int(bool(parsed.get("pending_delete"))),
+                            int(bool(parsed.get("redemption_period"))),
                             domain,
                         ))
                         updated += 1

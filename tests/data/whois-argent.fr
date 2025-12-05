@@ -1,0 +1,84 @@
+%%
+%% This is the AFNIC Whois server.
+%%
+%% complete date format: YYYY-MM-DDThh:mm:ssZ
+%%
+%% Rights restricted by copyright.
+%% See https://www.afnic.fr/en/domain-names-and-support/everything-there-is-to-know-about-domain-names/find-a-domain-name-or-a-holder-using-whois/
+%%
+%%
+
+domain:                        argent.fr
+status:                        ACTIVE
+eppstatus:                     active
+hold:                          NO
+holder-c:                      CTC3123230-FRNIC
+admin-c:                       OVH5-FRNIC
+tech-c:                        OVH5-FRNIC
+registrar:                     OVH
+Expiry Date:                   2027-09-24T10:33:48Z
+created:                       2000-07-10T22:00:00Z
+last-update:                   2025-09-27T17:53:37.502878Z
+source:                        FRNIC
+
+nserver:                       dns100.ovh.net
+nserver:                       ns100.ovh.net
+source:                        FRNIC
+
+key1-tag:                      2189
+key1-algo:                     8 [RSASHA256]
+key1-dgst-t:                   2 [SHA256]
+key1-dgst:                     13B113064C8242C79E970578BAEED313EED350963FE5EBBE1E34EFAB18DC9DD8
+source:                        FRNIC
+
+registrar:                     OVH
+address:                       2 Rue Kellermann
+address:                       59100 ROUBAIX
+country:                       FR
+phone:                         +33.899701761
+fax-no:                        +33.320200958
+e-mail:                        support@ovh.net
+website:                       http://www.ovh.com
+anonymous:                     No
+registered:                    1999-10-18T00:00:00Z
+source:                        FRNIC
+
+nic-hdl:                       CTC3123230-FRNIC
+type:                          ORGANIZATION
+contact:                       LIBRAIRIE GALERIE LES CHEVAU LEGERS
+address:                       LIBRAIRIE GALERIE LES CHEVAU LEGERS
+address:                       36 rue Vivienne
+address:                       75002 PARIS
+address:                       IDF
+country:                       FR
+phone:                         +33.140264297
+e-mail:                        b83a0e65-72d0-4214-861f-ac5d72c7994a@s.o-w-o.info
+registrar:                     OVH
+anonymous:                     NO
+obsoleted:                     NO
+eppstatus:                     associated
+eppstatus:                     active
+eligstatus:                    not identified
+reachstatus:                   not identified
+source:                        FRNIC
+
+nic-hdl:                       OVH5-FRNIC
+type:                          ORGANIZATION
+contact:                       OVH NET
+address:                       OVH
+address:                       140, quai du Sartel
+address:                       59100 Roubaix
+country:                       FR
+phone:                         +33.899701761
+e-mail:                        tech@ovh.net
+registrar:                     OVH
+changed:                       2025-12-03T15:04:31.901686Z
+anonymous:                     NO
+obsoleted:                     NO
+eppstatus:                     associated
+eppstatus:                     active
+eligstatus:                    not identified
+reachstatus:                   not identified
+source:                        FRNIC
+
+>>> Last update of WHOIS database: 2025-12-03T15:11:45.202241Z <<<

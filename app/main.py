@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from app.routers import domain
+from app.auth import verify_token
 import logging
 import logging.handlers
 import os
@@ -25,8 +26,40 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Add security scheme to OpenAPI
+from fastapi.openapi.utils import get_openapi
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    # Add security scheme
+    openapi_schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "Bearer token authentication. Set GPTKIT_BEARER_TOKEN environment variable."
+        }
+    }
+    # Apply security to all endpoints
+    for path in openapi_schema["paths"].values():
+        for method in path.values():
+            if isinstance(method, dict) and "security" not in method:
+                method["security"] = [{"BearerAuth": []}]
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
+
 app.include_router(domain.router)
 
-@app.get("/")
+@app.get("/", dependencies=[Depends(verify_token)])
 async def root():
     return {"message": "GPTKit is running"}

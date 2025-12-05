@@ -9,9 +9,19 @@ class WhoisService:
 
     def lookup(self, domain: str) -> str:
         try:
-            # Using -H to suppress legal disclaimers if possible, but standard whois usually just works
+            # Extract TLD to determine the appropriate WHOIS server
+            parts = domain.split(".")
+            tld = parts[-1].lower() if parts else ""
+            
+            # Use appropriate WHOIS server based on TLD
+            if tld == "fr":
+                whois_server = "whois.afnic.fr"
+            else:
+                # Default to Verisign for .com, .net, and other common TLDs
+                whois_server = "whois.verisign-grs.com"
+            
             result = subprocess.run(
-                ["whois", "-h", "whois.verisign-grs.com", domain],
+                ["whois", "-h", whois_server, domain],
                 capture_output=True,
                 text=True,
                 timeout=self.timeout
@@ -40,6 +50,7 @@ class WhoisService:
         not_found_patterns = [
             "no match",
             "not found",
+            "%% not found",  # AFNIC format for .fr domains
             "no entries found",
             "status: free",
             "nothing found",
@@ -56,27 +67,27 @@ class WhoisService:
 
 
 def parse_whois(raw: str, tld: str):
-    """Extract statut, creation_date, registrar, pendingDelete, redemptionPeriod for all TLDs.
+    """Extract statut, created_at, registrar, pending_delete, redemption_period for all TLDs.
 
     Heuristic parser reused across the app and migration scripts.
     """
     if not raw:
         return {
             "statut": None,
-            "creation_date": None,
+            "created_at": None,
             "registrar": None,
-            "pendingDelete": False,
-            "redemptionPeriod": False,
+            "pending_delete": False,
+            "redemption_period": False,
         }
 
     raw_lines = [l.strip() for l in raw.splitlines() if l.strip()]
     lower = raw.lower()
 
     statut = None
-    creation_date = None
+    created_at = None
     registrar = None
-    pendingDelete = False
-    redemptionPeriod = False
+    pending_delete = False
+    redemption_period = False
 
     import re
 
@@ -90,10 +101,10 @@ def parse_whois(raw: str, tld: str):
                 registrar = parts[1].strip()
                 continue
         # Creation date
-        if creation_date is None and ("creation date" in l or "created on" in l or "created:" in l or "creation:" in l or "registered on" in l):
+        if created_at is None and ("creation date" in l or "created on" in l or "created:" in l or "creation:" in l or "registered on" in l):
             parts = line.split(":", 1)
             if len(parts) == 2:
-                creation_date = parts[1].strip()
+                created_at = parts[1].strip()
                 continue
         # Status lines (can have multiple)
         if "status:" in l or l.startswith("domain status"):
@@ -101,11 +112,11 @@ def parse_whois(raw: str, tld: str):
                 parts = line.split(":", 1)
                 if len(parts) == 2:
                     statut = parts[1].strip()
-            # Check for pendingDelete and redemptionPeriod in any status line
+            # Check for pending_delete and redemption_period in any status line
             if "pendingdelete" in l:
-                pendingDelete = True
+                pending_delete = True
             if "redemptionperiod" in l:
-                redemptionPeriod = True
+                redemption_period = True
             continue
 
     # Fallback regex for Registrar lines like 'Registrar Name' without colon
@@ -116,8 +127,8 @@ def parse_whois(raw: str, tld: str):
 
     return {
         "statut": statut,
-        "creation_date": creation_date,
+        "created_at": created_at,
         "registrar": registrar,
-        "pendingDelete": pendingDelete,
-        "redemptionPeriod": redemptionPeriod,
+        "pending_delete": pending_delete,
+        "redemption_period": redemption_period,
     }
