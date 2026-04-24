@@ -29,7 +29,7 @@
           },
           "status": {
             "type": "string",
-            "enum": ["ok", "invalid_domain", "rate_limited", "whois_error", "skipped_budget"]
+            "enum": ["ok", "invalid_domain", "rate_limited", "whois_error"]
           }
         },
         "required": ["domain", "available", "checked_at", "status"]
@@ -38,14 +38,24 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "results": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AvailabilityResult"
-            }
+          "domain": {
+            "type": "string",
+            "description": "Normalized domain name"
+          },
+          "available": {
+            "type": ["boolean", "null"],
+            "description": "Availability when known, or null when the lookup failed."
+          },
+          "checked_at": {
+            "type": "string",
+            "description": "UTC timestamp of the cached WHOIS check, empty string when unavailable."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ok", "invalid_domain", "rate_limited", "whois_error"]
           }
         },
-        "required": ["results"]
+        "required": ["domain", "available", "checked_at", "status"]
       },
       "ErrorResponse": {
         "type": "object",
@@ -75,7 +85,7 @@
       "get": {
         "operationId": "checkDomainAvailability",
         "summary": "Check domain availability",
-        "description": "Check whether up to 10 distinct domains are available. Query the `domain` parameter multiple times to check several domains in a single request.",
+        "description": "Check whether a single domain is available.",
         "security": [
           {
             "BearerAuth": []
@@ -85,15 +95,10 @@
           {
             "name": "domain",
             "in": "query",
-            "required": false,
-            "description": "One or more full domain names including TLDs. Repeat the parameter to check multiple domains.",
-            "style": "form",
-            "explode": true,
+            "required": true,
+            "description": "Full domain name including TLD.",
             "schema": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
+              "type": "string"
             }
           },
           {
@@ -110,21 +115,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Availability results for each requested domain. Partial results are returned when some domains are invalid, rate-limited, or skipped.",
+            "description": "Availability result for the requested domain.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AvailabilityResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request, such as no domain provided or more than 10 distinct domains.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/AvailabilityResult"
                 }
               }
             }

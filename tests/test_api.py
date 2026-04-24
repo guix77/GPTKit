@@ -83,11 +83,7 @@ def test_root_endpoint(client):
 
 def test_availability_requires_at_least_one_domain(client):
     response = client.get("/domain/availability")
-    assert response.status_code == 400
-    assert response.json() == {
-        "error": "invalid_request",
-        "message": "At least one domain is required.",
-    }
+    assert response.status_code == 422
 
 
 def test_availability_authentication_required(client_with_auth):
@@ -117,50 +113,13 @@ def test_availability_single_domain_success(client):
     try:
         response = client.get("/domain/availability?domain=example.com")
         assert response.status_code == 200
-        data = response.json()
-
-        assert list(data.keys()) == ["results"]
-        assert len(data["results"]) == 1
-
-        result = data["results"][0]
+        result = response.json()
         assert result["domain"] == "example.com"
         assert result["available"] is False
         assert result["status"] == "ok"
         assert result["checked_at"]
     finally:
         domain.whois_service = original_service
-
-
-def test_availability_multi_domain_deduplicates_and_preserves_order(client):
-    from app.routers import domain
-
-    original_service = domain.whois_service
-    mock_service = MockWhoisService()
-    domain.whois_service = mock_service
-
-    try:
-        response = client.get(
-            "/domain/availability?domain=Example.com&domain=foo.com&domain=example.com"
-        )
-        assert response.status_code == 200
-        data = response.json()
-
-        assert [item["domain"] for item in data["results"]] == ["example.com", "foo.com"]
-        assert [item["status"] for item in data["results"]] == ["ok", "ok"]
-        assert mock_service.lookup_calls == ["example.com", "foo.com"]
-    finally:
-        domain.whois_service = original_service
-
-
-def test_availability_hardcap_returns_400(client):
-    params = [("domain", f"example{i}.com") for i in range(11)]
-    response = client.get("/domain/availability", params=params)
-
-    assert response.status_code == 400
-    assert response.json() == {
-        "error": "too_many_domains",
-        "message": "Maximum 10 domains per request.",
-    }
 
 
 def test_availability_cache_hit_skips_live_lookup(client):
@@ -181,7 +140,7 @@ def test_availability_cache_hit_skips_live_lookup(client):
         response = client.get("/domain/availability?domain=cached.com")
         assert response.status_code == 200
 
-        result = response.json()["results"][0]
+        result = response.json()
         assert result["domain"] == "cached.com"
         assert result["available"] is False
         assert result["status"] == "ok"
@@ -209,12 +168,12 @@ def test_availability_refresh_bypasses_cache(client):
         response = client.get("/domain/availability?domain=cached.com&refresh=1")
         assert response.status_code == 200
         assert mock_service.lookup_calls == ["cached.com"]
-        assert response.json()["results"][0]["status"] == "ok"
+        assert response.json()["status"] == "ok"
     finally:
         domain.whois_service = original_service
 
 
-def test_availability_invalid_domain_returns_partial_results(client):
+def test_availability_invalid_domain_returns_stable_result(client):
     from app.routers import domain
 
     original_service = domain.whois_service
@@ -222,24 +181,21 @@ def test_availability_invalid_domain_returns_partial_results(client):
     domain.whois_service = mock_service
 
     try:
-        response = client.get("/domain/availability?domain=invalid&domain=example.com")
+        response = client.get("/domain/availability?domain=invalid")
         assert response.status_code == 200
 
-        results = response.json()["results"]
-        assert results[0] == {
+        assert response.json() == {
             "domain": "invalid",
             "available": None,
             "checked_at": "",
             "status": "invalid_domain",
         }
-        assert results[1]["domain"] == "example.com"
-        assert results[1]["status"] == "ok"
-        assert mock_service.lookup_calls == ["example.com"]
+        assert mock_service.lookup_calls == []
     finally:
         domain.whois_service = original_service
 
 
-def test_availability_rate_limited_returns_partial_results(client):
+def test_availability_rate_limited_returns_stable_result(client):
     from app.routers import domain
 
     original_service = domain.whois_service
@@ -247,15 +203,14 @@ def test_availability_rate_limited_returns_partial_results(client):
     mock_service = MockWhoisService()
     domain.whois_service = mock_service
     domain.rate_limiter = RateLimiter(global_limit=1, domain_limit=5)
+    domain.rate_limiter.add("already-counted.com")
 
     try:
-        response = client.get("/domain/availability?domain=one.com&domain=two.com")
+        response = client.get("/domain/availability?domain=one.com")
         assert response.status_code == 200
 
-        results = response.json()["results"]
-        assert results[0]["status"] == "ok"
-        assert results[1] == {
-            "domain": "two.com",
+        assert response.json() == {
+            "domain": "one.com",
             "available": None,
             "checked_at": "",
             "status": "rate_limited",
@@ -263,31 +218,6 @@ def test_availability_rate_limited_returns_partial_results(client):
     finally:
         domain.whois_service = original_service
         domain.rate_limiter = original_rate_limiter
-
-
-def test_availability_skipped_budget_returns_partial_results(client, monkeypatch):
-    from app.routers import domain
-
-    monkeypatch.setattr(domain, "MAX_LIVE_LOOKUPS_PER_REQUEST", 1)
-
-    original_service = domain.whois_service
-    mock_service = MockWhoisService()
-    domain.whois_service = mock_service
-
-    try:
-        response = client.get("/domain/availability?domain=one.com&domain=two.com")
-        assert response.status_code == 200
-
-        results = response.json()["results"]
-        assert results[0]["status"] == "ok"
-        assert results[1] == {
-            "domain": "two.com",
-            "available": None,
-            "checked_at": "",
-            "status": "skipped_budget",
-        }
-    finally:
-        domain.whois_service = original_service
 
 
 def test_availability_response_does_not_expose_whois_details(client):
@@ -300,7 +230,7 @@ def test_availability_response_does_not_expose_whois_details(client):
         response = client.get("/domain/availability?domain=example.com")
         assert response.status_code == 200
 
-        result = response.json()["results"][0]
+        result = response.json()
         assert set(result.keys()) == {"domain", "available", "checked_at", "status"}
         assert "raw" not in result
         assert "created_at" not in result
@@ -322,3 +252,6 @@ def test_openapi_exposes_availability_endpoint_only(client):
 
     parameters = schema["paths"]["/domain/availability"]["get"]["parameters"]
     assert {parameter["name"] for parameter in parameters} == {"domain", "refresh"}
+    domain_parameter = next(parameter for parameter in parameters if parameter["name"] == "domain")
+    assert domain_parameter["required"] is True
+    assert domain_parameter["schema"]["type"] == "string"
