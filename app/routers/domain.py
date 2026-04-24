@@ -64,7 +64,7 @@ def _normalize_bool(value) -> bool:
 def _error_response(status_code: int, error: str, message: str) -> JSONResponse:
     return JSONResponse(
         status_code=status_code,
-        content=ErrorResponse(error=error, message=message).dict()
+        content=ErrorResponse(error=error, message=message).model_dump()
     )
 
 

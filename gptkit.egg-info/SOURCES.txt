@@ -1,6 +1,7 @@
 README.md
 pyproject.toml
 ./app/__init__.py
+./app/auth.py
 ./app/main.py
 ./app/routers/domain.py
 ./app/services/cache.py
@@ -17,5 +18,6 @@ gptkit.egg-info/SOURCES.txt
 gptkit.egg-info/dependency_links.txt
 gptkit.egg-info/requires.txt
 gptkit.egg-info/top_level.txt
+tests/test_api.py
 tests/test_cache_persistence.py
 tests/test_whois_parsing.py
