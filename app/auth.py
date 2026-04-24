@@ -1,15 +1,15 @@
-from fastapi import Security, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Optional
-import os
 import logging
+import os
+
+from fastapi import HTTPException, Security, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 logger = logging.getLogger(__name__)
 
 # HTTPBearer scheme for extracting Bearer token
 security = HTTPBearer(auto_error=False)
 
-def get_bearer_token() -> Optional[str]:
+def get_bearer_token() -> str | None:
     """Get the expected Bearer token from environment variable."""
     # Allow disabling auth in local/dev mode
     if os.getenv("GPTKIT_DISABLE_AUTH", "").lower() in ("1", "true", "yes"):
@@ -25,7 +25,7 @@ def get_bearer_token() -> Optional[str]:
         )
     return token
 
-def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Security(security)) -> Optional[str]:
+def verify_token(credentials: HTTPAuthorizationCredentials | None = Security(security)) -> str | None:
     """
     Verify the Bearer token from the Authorization header.
     
@@ -46,7 +46,7 @@ def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Security(
         )
     
     if credentials.credentials != expected_token:
-        logger.warning(f"Invalid token attempt from client")
+        logger.warning("Invalid token attempt from client")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
@@ -54,4 +54,3 @@ def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Security(
         )
     
     return credentials.credentials
-

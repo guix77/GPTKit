@@ -1,13 +1,15 @@
-import sqlite3
-from datetime import datetime, timezone
-from typing import Optional, Dict, Any
 import logging
 import os
+import sqlite3
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
+type CacheRow = dict[str, object]
+
+
 class WhoisCache:
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: str | None = None):
         # Allow overriding DB path for tests or alternate deployments
         self.db_path = db_path or "data/whois_cache.db"
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
@@ -18,7 +20,7 @@ class WhoisCache:
         except Exception:
             logger.exception("Migration failed during cache init. Continuing without migration.")
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
             # Create table with parsed fields. For older DBs, migration script will add missing columns.
             conn.execute("""
@@ -36,31 +38,22 @@ class WhoisCache:
                 )
             """)
 
-    def get(self, domain: str) -> Optional[Dict[str, Any]]:
+    def get(self, domain: str) -> CacheRow | None:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute("SELECT * FROM whois_cache WHERE domain = ?", (domain,))
                 row = cursor.fetchone()
                 if row:
-                    logger.debug(f"Cache HIT for domain: {domain}")
+                    logger.debug("Cache HIT for domain: %s", domain)
                     return dict(row)
-                else:
-                    logger.debug(f"Cache MISS for domain: {domain}")
+                logger.debug("Cache MISS for domain: %s", domain)
         except sqlite3.Error as e:
-            logger.error(f"Cache error on get({domain}): {e}")
+            logger.error("Cache error on get(%s): %s", domain, e)
             return None
         return None
-    def _ensure_bool(self, val):
-        # SQLite stores booleans as 0/1 or NULL. Normalize to Python bool where appropriate.
-        if val is None:
-            return False
-        try:
-            return bool(int(val))
-        except Exception:
-            return bool(val)
 
-    def set(self, domain: str, tld: str, available: bool, raw: str):
+    def set(self, domain: str, tld: str, available: bool, raw: str) -> None:
         checked_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         # parse raw to extract fields to persist
         try:
@@ -88,10 +81,11 @@ class WhoisCache:
                     int(bool(parsed.get("pending_delete"))),
                     int(bool(parsed.get("redemption_period")))
                 ))
-            logger.debug(f"Cache SET for domain: {domain} (checked_at: {checked_at})")
+            logger.debug("Cache SET for domain: %s (checked_at: %s)", domain, checked_at)
         except sqlite3.Error as e:
-            logger.error(f"Cache error on set({domain}): {e}")
-    def _migrate_if_needed(self):
+            logger.error("Cache error on set(%s): %s", domain, e)
+
+    def _migrate_if_needed(self) -> None:
         """Detect missing expected columns, add them, migrate old column names to new ones, and backfill parsed fields from raw."""
         EXPECTED = {
             "statut": "TEXT",
@@ -109,7 +103,7 @@ class WhoisCache:
                 # Add new columns if they don't exist
                 to_add = [(n, t) for n, t in EXPECTED.items() if n not in existing]
                 if to_add:
-                    logger.info(f"Cache migration: adding columns: {[n for n, _ in to_add]}")
+                    logger.info("Cache migration: adding columns: %s", [n for n, _ in to_add])
                     for name, coltype in to_add:
                         try:
                             conn.execute(f"ALTER TABLE whois_cache ADD COLUMN {name} {coltype}")
@@ -134,7 +128,7 @@ class WhoisCache:
                                 WHERE {new_col} IS NULL AND {old_col} IS NOT NULL
                             """)
                             if result.rowcount > 0:
-                                logger.info(f"Cache migration: migrated {result.rowcount} rows from {old_col} to {new_col}")
+                                logger.info("Cache migration: migrated %s rows from %s to %s", result.rowcount, old_col, new_col)
                                 conn.commit()
                         except sqlite3.Error:
                             logger.exception(f"Failed to migrate {old_col} to {new_col}; continuing")
@@ -143,7 +137,7 @@ class WhoisCache:
                 sel = "SELECT domain, raw, tld FROM whois_cache WHERE raw IS NOT NULL AND (statut IS NULL OR created_at IS NULL OR registrar IS NULL OR pending_delete IS NULL OR redemption_period IS NULL)"
                 rows = conn.execute(sel).fetchall()
                 if rows:
-                    logger.info(f"Cache migration: backfilling parsed fields for {len(rows)} rows")
+                    logger.info("Cache migration: backfilling parsed fields for %s rows", len(rows))
                 # Import parser locally to avoid circular issues
                 try:
                     from app.services.whois import parse_whois
@@ -169,6 +163,6 @@ class WhoisCache:
                         logger.exception(f"Failed to backfill domain {domain}; skipping")
                 if updated:
                     conn.commit()
-                    logger.info(f"Cache migration: backfilled {updated} rows")
+                    logger.info("Cache migration: backfilled %s rows", updated)
         except sqlite3.Error:
             logger.exception("SQLite error during cache migration")

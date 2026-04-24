@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import List, Literal, Optional
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
@@ -25,16 +25,19 @@ MAX_DOMAINS_PER_REQUEST = 10
 MAX_LIVE_LOOKUPS_PER_REQUEST = 3
 LIVE_LOOKUP_BUDGET_SECONDS = 8.0
 
+type AvailabilityStatus = Literal["ok", "invalid_domain", "rate_limited", "whois_error", "skipped_budget"]
+type CachedData = dict[str, object]
+
 
 class AvailabilityResult(BaseModel):
     domain: str
-    available: Optional[bool] = None
+    available: bool | None = None
     checked_at: str = ""
-    status: Literal["ok", "invalid_domain", "rate_limited", "whois_error", "skipped_budget"]
+    status: AvailabilityStatus
 
 
 class AvailabilityResponse(BaseModel):
-    results: List[AvailabilityResult]
+    results: list[AvailabilityResult]
 
 
 class ErrorResponse(BaseModel):
@@ -42,7 +45,7 @@ class ErrorResponse(BaseModel):
     message: str
 
 
-def _normalize_text(value: Optional[str]) -> str:
+def _normalize_text(value: str | None) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
@@ -81,8 +84,8 @@ def _is_valid_domain(domain: str) -> bool:
 
 def _build_result(
     domain: str,
-    status: Literal["ok", "invalid_domain", "rate_limited", "whois_error", "skipped_budget"],
-    available: Optional[bool] = None,
+    status: AvailabilityStatus,
+    available: bool | None = None,
     checked_at: str = "",
 ) -> AvailabilityResult:
     return AvailabilityResult(
@@ -93,7 +96,7 @@ def _build_result(
     )
 
 
-def _build_cached_result(domain: str, cached_data: dict) -> AvailabilityResult:
+def _build_cached_result(domain: str, cached_data: CachedData) -> AvailabilityResult:
     return _build_result(
         domain=domain,
         available=_normalize_bool(cached_data.get("available")),
@@ -110,10 +113,10 @@ def _build_cached_result(domain: str, cached_data: dict) -> AvailabilityResult:
     },
 )
 async def get_availability(
-    domain: Optional[List[str]] = Query(None, description="One or more domain names to check"),
+    domain: list[str] | None = Query(None, description="One or more domain names to check"),
     refresh: int = Query(0, description="Force fresh lookup (1 to refresh)"),
-    token: str = Depends(verify_token)
-):
+    token: str | None = Depends(verify_token)
+) -> AvailabilityResponse:
     logger.info("get_availability called for domains=%s refresh=%s", domain, refresh)
 
     normalized_domains = []
@@ -138,7 +141,7 @@ async def get_availability(
             message=f"Maximum {MAX_DOMAINS_PER_REQUEST} domains per request.",
         )
 
-    results: List[Optional[AvailabilityResult]] = [None] * len(normalized_domains)
+    results: list[AvailabilityResult | None] = [None] * len(normalized_domains)
     live_candidates = []
 
     for index, current_domain in enumerate(normalized_domains):

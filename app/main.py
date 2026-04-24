@@ -1,9 +1,12 @@
-from fastapi import FastAPI, Depends
-from app.routers import domain
-from app.auth import verify_token
 import logging
 import logging.handlers
 import os
+
+from fastapi import Depends, FastAPI
+from fastapi.openapi.utils import get_openapi
+
+from app.auth import verify_token
+from app.routers import domain
 
 # Configure logging to server.log
 log_dir = os.path.dirname(os.path.abspath(__file__))
@@ -26,10 +29,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add security scheme to OpenAPI
-from fastapi.openapi.utils import get_openapi
-
-def custom_openapi():
+def custom_openapi() -> dict[str, object]:
     if app.openapi_schema:
         return app.openapi_schema
     openapi_schema = get_openapi(
@@ -61,5 +61,5 @@ app.openapi = custom_openapi
 app.include_router(domain.router)
 
 @app.get("/", dependencies=[Depends(verify_token)])
-async def root():
+async def root() -> dict[str, str]:
     return {"message": "GPTKit is running"}

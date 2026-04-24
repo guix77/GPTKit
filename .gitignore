@@ -6,7 +6,11 @@ __pycache__/
 # Virtual Environment
 venv/
 env/
+.venv/
 .env
+
+# Packaging / build metadata
+gptkit.egg-info/
 
 # Database
 whois_cache.db

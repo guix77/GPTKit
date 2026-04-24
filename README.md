@@ -28,18 +28,20 @@ GPTKIT_BEARER_TOKEN=your-secret-token-here
 
 #### Local Development
 
+GPTKit now targets Python 3.14+ and uses `uv` for all local commands.
+
 For local development, you can disable authentication:
 
 ```bash
 export GPTKIT_DISABLE_AUTH=1
-uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
 Or set the token normally:
 
 ```bash
 export GPTKIT_BEARER_TOKEN="your-secret-token-here"
-uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
 ## Tools
@@ -114,12 +116,12 @@ Docker Compose will automatically load variables from the `.env` file or from th
 
 1. **Installation**:
    ```bash
-   pip install -r requirements.txt
+   uv sync --dev
    ```
 
 2. **Run**:
    ```bash
-   uvicorn app.main:app --reload
+   uv run uvicorn app.main:app --reload
    ```
 3. **Tests**:
 
@@ -135,15 +137,12 @@ Docker Compose will automatically load variables from the `.env` file or from th
 
 - Run the unit test suite with pytest (from the project root):
   ```bash
-  # activate your virtualenv if you have one, e.g.:
-  source venv/bin/activate
-
-  # install test/dev dependencies if needed
-  pip install -r requirements.txt
+  # sync the project environment
+  uv sync --dev
 
   # run all tests
-  pytest -q
+  uv run pytest -q
 
   # run a single test file
-  pytest tests/test_whois_parsing.py -q
+  uv run pytest tests/test_whois_parsing.py -q
   ```
