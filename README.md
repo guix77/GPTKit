@@ -52,10 +52,12 @@ Allows checking domain name availability and retrieving WHOIS information.
 - **Parameters**:
   - `domain` (required): The domain name to check (e.g., `google.com`).
   - `refresh` (optional): `1` to force a fresh WHOIS lookup (ignores cache).
+  - `details` (optional): `1` to include the raw WHOIS payload in the `raw` field.
 - **Features**:
   - Persistent cache (SQLite).
   - Rate limiting (global and per domain).
   - Automatic availability parsing for major TLDs.
+  - Stable JSON shape for GPT Actions: all response keys are always present, and missing text values are returned as empty strings.
 
 ## Deployment
 

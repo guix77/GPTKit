@@ -60,8 +60,8 @@ def test_whois_invalid_domain(client):
     """Test WHOIS endpoint with invalid domain."""
     response = client.get("/domain/whois?domain=invalid")
     assert response.status_code == 400
-    assert "error" in response.json()["detail"]
-    assert response.json()["detail"]["error"] == "invalid_domain"
+    assert response.json()["error"] == "invalid_domain"
+    assert "message" in response.json()
 
 def test_whois_authentication_required(client_with_auth):
     """Test that authentication is required when token is set."""
@@ -86,7 +86,7 @@ def test_whois_authentication_required(client_with_auth):
     assert response.status_code != 401
 
 def test_whois_minimal_format(client, monkeypatch):
-    """Test WHOIS endpoint returns minimal format by default."""
+    """Test WHOIS endpoint returns a stable format by default."""
     # Mock whois lookup to avoid actual network calls
     from app.services.whois import WhoisService
     from app.routers import domain
@@ -106,20 +106,24 @@ def test_whois_minimal_format(client, monkeypatch):
         assert response.status_code == 200
         data = response.json()
         
-        # Check minimal format structure
+        # Check stable format structure
         assert "domain" in data
         assert "available" in data
         assert "created_at" in data
-        # Should NOT have detailed fields
-        assert "tld" not in data
-        assert "checked_at" not in data
-        assert "raw" not in data
-        assert "registrar" not in data
+        assert "tld" in data
+        assert "checked_at" in data
+        assert "raw" in data
+        assert "registrar" in data
+        assert "pending_delete" in data
+        assert "redemption_period" in data
+        assert "statut" in data
+        assert data["raw"] == ""
+        assert data["created_at"] == "2020-01-01T00:00:00Z"
     finally:
         domain.whois_service = original_service
 
 def test_whois_detailed_format(client, monkeypatch):
-    """Test WHOIS endpoint returns detailed format with details=1."""
+    """Test WHOIS endpoint includes raw output with details=1."""
     # Mock whois lookup
     from app.services.whois import WhoisService
     from app.routers import domain
@@ -149,6 +153,7 @@ def test_whois_detailed_format(client, monkeypatch):
         assert "registrar" in data
         assert "pending_delete" in data
         assert "redemption_period" in data
+        assert "example.com" in data["raw"]
     finally:
         domain.whois_service = original_service
 
@@ -189,7 +194,7 @@ def test_whois_refresh_parameter(client, monkeypatch):
         domain.whois_service = original_service
 
 def test_whois_cache_hit_format(client, monkeypatch):
-    """Test that cached data returns correct format."""
+    """Test that cached data returns the stable default format."""
     from app.routers import domain
     
     # Pre-populate cache
@@ -205,11 +210,16 @@ def test_whois_cache_hit_format(client, monkeypatch):
     assert response.status_code == 200
     data = response.json()
     
-    # Should be minimal format
+    # Should be stable default format
     assert "domain" in data
     assert "available" in data
+    assert "created_at" in data
+    assert "tld" in data
+    assert "checked_at" in data
+    assert "raw" in data
     assert data["domain"] == "cached.com"
     assert data["available"] == False
+    assert data["raw"] == ""
 
 def test_whois_cache_hit_detailed_format(client, monkeypatch):
     """Test that cached data returns detailed format with details=1."""
@@ -237,3 +247,26 @@ def test_whois_cache_hit_detailed_format(client, monkeypatch):
     assert data["tld"] == "com"
     assert "cached.com" in data["raw"]
 
+def test_whois_missing_created_at_returns_empty_string(client, monkeypatch):
+    """Test that text fields stay strings even when WHOIS data is incomplete."""
+    from app.routers import domain
+
+    class MockWhoisService:
+        def lookup(self, domain):
+            return "Domain Name: example.com\nRegistrar: Test Registrar"
+
+        def is_available(self, raw, tld):
+            return False
+
+    original_service = domain.whois_service
+    domain.whois_service = MockWhoisService()
+
+    try:
+        response = client.get("/domain/whois?domain=example.com")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["created_at"] == ""
+        assert data["registrar"] == "Test Registrar"
+        assert data["raw"] == ""
+    finally:
+        domain.whois_service = original_service

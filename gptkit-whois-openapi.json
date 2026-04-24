@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "GPTKit WHOIS API",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "servers": [
     {
@@ -56,7 +56,7 @@
             "name": "details",
             "in": "query",
             "required": false,
-            "description": "If 1, return detailed format with all keys including raw. Default is 0 (minimalist format).",
+            "description": "If 1, populate the raw WHOIS payload in the response. All response keys are always present.",
             "schema": {
               "type": "integer",
               "enum": [0, 1],
@@ -66,41 +66,25 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful WHOIS lookup. Format depends on the 'details' parameter: minimalist format (default) or detailed format with all keys including raw.",
+            "description": "Successful WHOIS lookup. The response shape is always the same. Text fields are empty strings when unavailable. The raw field is only populated when details=1.",
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "title": "MinimalistFormat",
-                      "description": "Minimalist format returned by default (when details=0 or not provided)",
-                      "properties": {
-                        "domain": { "type": "string", "description": "Domain name" },
-                        "available": { "type": "boolean", "description": "Availability status" },
-                        "created_at": { "type": "string", "nullable": true, "description": "Domain creation date, null if not available" }
-                      },
-                      "required": ["domain", "available"]
-                    },
-                    {
-                      "type": "object",
-                      "title": "DetailedFormat",
-                      "description": "Detailed format returned when details=1, includes all keys and raw WHOIS data",
-                      "properties": {
-                        "domain": { "type": "string" },
-                        "checked_at": { "type": "string", "format": "date-time" },
-                        "tld": { "type": "string" },
-                        "available": { "type": "boolean" },
-                        "pending_delete": { "type": "boolean" },
-                        "redemption_period": { "type": "boolean" },
-                        "statut": { "type": "string", "nullable": true },
-                        "created_at": { "type": "string", "nullable": true },
-                        "registrar": { "type": "string", "nullable": true },
-                        "raw": { "type": "string", "description": "Raw WHOIS data" }
-                      },
-                      "required": ["domain", "checked_at", "tld", "available", "pending_delete", "redemption_period", "raw"]
-                    }
-                  ]
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "domain": { "type": "string", "description": "Domain name" },
+                    "available": { "type": "boolean", "description": "Availability status" },
+                    "created_at": { "type": "string", "description": "Domain creation date, empty string if not available" },
+                    "checked_at": { "type": "string", "description": "UTC timestamp of the cached WHOIS check, empty string if unavailable" },
+                    "tld": { "type": "string", "description": "Top-level domain" },
+                    "pending_delete": { "type": "boolean" },
+                    "redemption_period": { "type": "boolean" },
+                    "statut": { "type": "string", "description": "WHOIS status, empty string if unavailable" },
+                    "registrar": { "type": "string", "description": "Registrar name, empty string if unavailable" },
+                    "raw": { "type": "string", "description": "Raw WHOIS data, only populated when details=1" }
+                  },
+                  "required": ["domain", "available", "created_at", "checked_at", "tld", "pending_delete", "redemption_period", "statut", "registrar", "raw"]
                 }
               }
             }
