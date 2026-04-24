@@ -14,19 +14,20 @@ class RateLimiter:
             hits.pop(0)
 
     def check(self, domain: str) -> bool:
+        return self.check_reason(domain) is None
+
+    def check_reason(self, domain: str):
         # Cleanup first
         self._cleanup(self.global_hits)
         self._cleanup(self.domain_hits[domain])
-        
-        # Global check
+
         if len(self.global_hits) >= self.global_limit:
-            return False
-            
-        # Domain check
+            return "global_limit"
+
         if len(self.domain_hits[domain]) >= self.domain_limit:
-            return False
-            
-        return True
+            return "domain_limit"
+
+        return None
 
     def add(self, domain: str):
         now = time.time()

@@ -12,7 +12,7 @@ When calling the API, include the Bearer token in the `Authorization` header:
 
 ```bash
 curl -H "Authorization: Bearer your-token-here" \
-  "https://gptkit.guillaumeduveau.com/domain/whois?domain=example.com"
+  "https://gptkit.guillaumeduveau.com/domain/availability?domain=example.com"
 ```
 
 ### Configuration
@@ -44,20 +44,35 @@ uvicorn app.main:app --reload
 
 ## Tools
 
-### WHOIS (`/domain/whois`)
+### Domain Availability (`/domain/availability`)
 
-Allows checking domain name availability and retrieving WHOIS information.
+Checks whether one or more domains are available, with a response shape optimized for Custom GPT Actions.
 
-- **Endpoint**: `GET /domain/whois`
+- **Endpoint**: `GET /domain/availability`
 - **Parameters**:
-  - `domain` (required): The domain name to check (e.g., `google.com`).
-  - `refresh` (optional): `1` to force a fresh WHOIS lookup (ignores cache).
-  - `details` (optional): `1` to include the raw WHOIS payload in the `raw` field.
+  - `domain` (required, repeatable): One or more full domain names including TLDs, for example `example.com` or `monsite.fr`.
+  - `refresh` (optional): `1` to bypass the cache and force fresh WHOIS lookups for the requested domains.
 - **Features**:
   - Persistent cache (SQLite).
   - Rate limiting (global and per domain).
-  - Automatic availability parsing for major TLDs.
-  - Stable JSON shape for GPT Actions: all response keys are always present, and missing text values are returned as empty strings.
+  - Internal WHOIS collection kept for caching, without exposing WHOIS details in the public response.
+  - Stable batch response for GPT Actions with per-domain statuses.
+  - Hard cap of 10 distinct domains per request.
+
+Example response:
+
+```json
+{
+  "results": [
+    {
+      "domain": "example.com",
+      "available": true,
+      "checked_at": "2026-04-24T12:34:56Z",
+      "status": "ok"
+    }
+  ]
+}
+```
 
 ## Deployment
 
@@ -111,11 +126,11 @@ Docker Compose will automatically load variables from the `.env` file or from th
 - Quick API smoke test (curl):
   ```bash
   # Without authentication (if GPTKIT_BEARER_TOKEN is not set)
-  curl "http://localhost:8000/domain/whois?domain=example.com"
+  curl "http://localhost:8000/domain/availability?domain=example.com"
   
   # With authentication
   curl -H "Authorization: Bearer your-token-here" \
-    "http://localhost:8000/domain/whois?domain=example.com"
+    "http://localhost:8000/domain/availability?domain=example.com&domain=example.fr"
   ```
 
 - Run the unit test suite with pytest (from the project root):

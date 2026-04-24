@@ -1,12 +1,15 @@
-from fastapi import APIRouter, Query, Depends
+import logging
+import time
+from typing import List, Literal, Optional
+
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional
-from app.services.cache import WhoisCache
-from app.services.whois import WhoisService, parse_whois
-from app.services.rate_limiter import RateLimiter
+
 from app.auth import verify_token
-import logging
+from app.services.cache import WhoisCache
+from app.services.rate_limiter import RateLimiter
+from app.services.whois import WhoisService
 
 logger = logging.getLogger(__name__)
 
@@ -18,25 +21,30 @@ cache = WhoisCache()
 whois_service = WhoisService()
 rate_limiter = RateLimiter()
 
-class WhoisResponse(BaseModel):
-    """Format stable pour les outils GPT, avec des types toujours identiques."""
+MAX_DOMAINS_PER_REQUEST = 10
+MAX_LIVE_LOOKUPS_PER_REQUEST = 3
+LIVE_LOOKUP_BUDGET_SECONDS = 8.0
+
+
+class AvailabilityResult(BaseModel):
     domain: str
-    available: bool
-    created_at: str = ""
+    available: Optional[bool] = None
     checked_at: str = ""
-    tld: str = ""
-    pending_delete: bool = False
-    redemption_period: bool = False
-    statut: str = ""
-    registrar: str = ""
-    raw: str = ""
+    status: Literal["ok", "invalid_domain", "rate_limited", "whois_error", "skipped_budget"]
+
+
+class AvailabilityResponse(BaseModel):
+    results: List[AvailabilityResult]
+
 
 class ErrorResponse(BaseModel):
     error: str
     message: str
 
+
 def _normalize_text(value: Optional[str]) -> str:
     return value.strip() if isinstance(value, str) else ""
+
 
 def _normalize_bool(value) -> bool:
     if value is None:
@@ -59,126 +67,144 @@ def _error_response(status_code: int, error: str, message: str) -> JSONResponse:
         content=ErrorResponse(error=error, message=message).dict()
     )
 
-def _prepare_cached_data(cached_data: dict, fallback_tld: str) -> dict:
-    # Prefer parsed fields persisted in DB. Only fallback to parsing raw if fields are missing.
-    # Support both old and new column names for migration compatibility.
-    parsed = {
-        "statut": cached_data.get("statut"),
-        "created_at": cached_data.get("created_at") or cached_data.get("creation_date"),
-        "registrar": cached_data.get("registrar"),
-        "pending_delete": cached_data.get("pending_delete") if cached_data.get("pending_delete") is not None else cached_data.get("pendingDelete"),
-        "redemption_period": cached_data.get("redemption_period") if cached_data.get("redemption_period") is not None else cached_data.get("redemptionPeriod"),
-    }
-    if not any(v is not None for v in parsed.values()):
-        parsed = parse_whois(cached_data.get("raw"), fallback_tld)
-    else:
-        parsed["pending_delete"] = _normalize_bool(parsed.get("pending_delete"))
-        parsed["redemption_period"] = _normalize_bool(parsed.get("redemption_period"))
 
-    normalized = dict(cached_data)
-    normalized.update(parsed)
-    normalized["available"] = _normalize_bool(normalized.get("available"))
-    normalized["pending_delete"] = _normalize_bool(normalized.get("pending_delete"))
-    normalized["redemption_period"] = _normalize_bool(normalized.get("redemption_period"))
-    normalized["created_at"] = _normalize_text(normalized.get("created_at"))
-    normalized["checked_at"] = _normalize_text(normalized.get("checked_at"))
-    normalized["tld"] = _normalize_text(normalized.get("tld")) or fallback_tld
-    normalized["statut"] = _normalize_text(normalized.get("statut"))
-    normalized["registrar"] = _normalize_text(normalized.get("registrar"))
-    normalized["raw"] = normalized.get("raw") if isinstance(normalized.get("raw"), str) else ""
+def _normalize_domain(domain: str) -> str:
+    return _normalize_text(domain).lower()
 
-    # ensure coherence: if pending_delete or redemption_period, available must be False
-    if normalized["pending_delete"] or normalized["redemption_period"]:
-        normalized["available"] = False
 
-    return normalized
+def _is_valid_domain(domain: str) -> bool:
+    if "." not in domain:
+        return False
+    labels = domain.split(".")
+    return all(label.strip() for label in labels)
 
-def _build_response(cached_data: dict, fallback_tld: str, details: int) -> WhoisResponse:
-    normalized = _prepare_cached_data(cached_data, fallback_tld)
-    return WhoisResponse(
-        domain=_normalize_text(normalized.get("domain")),
-        available=normalized["available"],
-        created_at=normalized["created_at"],
-        checked_at=normalized["checked_at"],
-        tld=normalized["tld"],
-        pending_delete=normalized["pending_delete"],
-        redemption_period=normalized["redemption_period"],
-        statut=normalized["statut"],
-        registrar=normalized["registrar"],
-        raw=normalized["raw"] if details == 1 else "",
+
+def _build_result(
+    domain: str,
+    status: Literal["ok", "invalid_domain", "rate_limited", "whois_error", "skipped_budget"],
+    available: Optional[bool] = None,
+    checked_at: str = "",
+) -> AvailabilityResult:
+    return AvailabilityResult(
+        domain=_normalize_domain(domain),
+        available=available,
+        checked_at=_normalize_text(checked_at),
+        status=status,
     )
 
+
+def _build_cached_result(domain: str, cached_data: dict) -> AvailabilityResult:
+    return _build_result(
+        domain=domain,
+        available=_normalize_bool(cached_data.get("available")),
+        checked_at=_normalize_text(cached_data.get("checked_at")),
+        status="ok",
+    )
+
+
 @router.get(
-    "/whois",
-    response_model=WhoisResponse,
+    "/availability",
+    response_model=AvailabilityResponse,
     responses={
         400: {"model": ErrorResponse},
-        429: {"model": ErrorResponse},
-        500: {"model": ErrorResponse},
     },
 )
-async def get_whois(
-    domain: str = Query(..., description="Domain name to check"),
+async def get_availability(
+    domain: Optional[List[str]] = Query(None, description="One or more domain names to check"),
     refresh: int = Query(0, description="Force fresh lookup (1 to refresh)"),
-    details: int = Query(0, description="Return detailed format with all keys including raw (1 for details)"),
     token: str = Depends(verify_token)
 ):
-    logger.info(f"get_whois called for domain={domain}, refresh={refresh}, details={details}")
-    # 1. Validation
-    if "." not in domain:
+    logger.info("get_availability called for domains=%s refresh=%s", domain, refresh)
+
+    normalized_domains = []
+    seen = set()
+    for raw_domain in domain or []:
+        normalized_domain = _normalize_domain(raw_domain)
+        if normalized_domain not in seen:
+            seen.add(normalized_domain)
+            normalized_domains.append(normalized_domain)
+
+    if not normalized_domains:
         return _error_response(
             status_code=400,
-            error="invalid_domain",
-            message="Domain must include a TLD (example: site.com).",
+            error="invalid_request",
+            message="At least one domain is required.",
         )
-    
-    # Simple TLD extraction (last part after dot)
-    parts = domain.split(".")
-    tld = parts[-1]
-    
-    # 2. Cache
-    # parser is provided by app.services.whois.parse_whois
 
-    if refresh != 1:
-        cached_data = cache.get(domain)
+    if len(normalized_domains) > MAX_DOMAINS_PER_REQUEST:
+        return _error_response(
+            status_code=400,
+            error="too_many_domains",
+            message=f"Maximum {MAX_DOMAINS_PER_REQUEST} domains per request.",
+        )
+
+    results: List[Optional[AvailabilityResult]] = [None] * len(normalized_domains)
+    live_candidates = []
+
+    for index, current_domain in enumerate(normalized_domains):
+        if not _is_valid_domain(current_domain):
+            results[index] = _build_result(current_domain, status="invalid_domain")
+            continue
+
+        if refresh != 1:
+            cached_data = cache.get(current_domain)
+            if cached_data:
+                results[index] = _build_cached_result(current_domain, cached_data)
+                continue
+
+        live_candidates.append((index, current_domain))
+
+    live_lookup_count = 0
+    live_lookup_started_at = time.monotonic()
+
+    for live_index, (result_index, current_domain) in enumerate(live_candidates):
+        if live_lookup_count >= MAX_LIVE_LOOKUPS_PER_REQUEST:
+            results[result_index] = _build_result(current_domain, status="skipped_budget")
+            continue
+
+        if time.monotonic() - live_lookup_started_at >= LIVE_LOOKUP_BUDGET_SECONDS:
+            results[result_index] = _build_result(current_domain, status="skipped_budget")
+            continue
+
+        rate_limit_reason = rate_limiter.check_reason(current_domain)
+        if rate_limit_reason == "global_limit":
+            results[result_index] = _build_result(current_domain, status="rate_limited")
+            for pending_result_index, pending_domain in live_candidates[live_index + 1:]:
+                if results[pending_result_index] is None:
+                    results[pending_result_index] = _build_result(pending_domain, status="rate_limited")
+            break
+
+        if rate_limit_reason is not None:
+            results[result_index] = _build_result(current_domain, status="rate_limited")
+            continue
+
+        rate_limiter.add(current_domain)
+        live_lookup_count += 1
+
+        try:
+            raw_output = whois_service.lookup(current_domain)
+        except Exception:
+            logger.exception("WHOIS lookup failed for %s", current_domain)
+            results[result_index] = _build_result(current_domain, status="whois_error")
+            continue
+
+        tld = current_domain.rsplit(".", 1)[-1]
+        available = whois_service.is_available(raw_output, tld)
+        cache.set(current_domain, tld, available, raw_output)
+        cached_data = cache.get(current_domain)
+
         if cached_data:
-            return _build_response(cached_data, tld, details)
+            results[result_index] = _build_cached_result(current_domain, cached_data)
+        else:
+            results[result_index] = _build_result(
+                current_domain,
+                available=available,
+                checked_at="",
+                status="ok",
+            )
 
-    logger.debug(f"Cache miss or refresh=1, performing lookup for {domain}")
-
-    # 3. Rate Limiting
-    if not rate_limiter.check(domain):
-        return _error_response(
-            status_code=429,
-            error="rate_limited",
-            message="WHOIS rate limit exceeded.",
-        )
-    
-    rate_limiter.add(domain)
-
-    # 4. Execution
-    try:
-        raw_output = whois_service.lookup(domain)
-    except Exception:
-        return _error_response(
-            status_code=500,
-            error="whois_error",
-            message="WHOIS lookup failed or timed out.",
-        )
-
-    # 5. Availability
-    available = whois_service.is_available(raw_output, tld)
-
-    # 6. Update Cache
-    cache.set(domain, tld, available, raw_output)
-    
-    # Fetch back to ensure we return exactly what's in the cache (including timestamp)
-    cached_data = cache.get(domain)
-    if not cached_data:
-        return _error_response(
-            status_code=500,
-            error="cache_error",
-            message="Failed to retrieve data from cache after save.",
-        )
-
-    return _build_response(cached_data, tld, details)
+    finalized_results = [
+        result if result is not None else _build_result(normalized_domains[index], status="skipped_budget")
+        for index, result in enumerate(results)
+    ]
+    return AvailabilityResponse(results=finalized_results)

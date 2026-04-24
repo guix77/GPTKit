@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "GPTKit WHOIS API",
-    "version": "1.1.0"
+    "title": "GPTKit Domain Availability API",
+    "version": "1.2.0"
   },
   "servers": [
     {
@@ -10,7 +10,57 @@
     }
   ],
   "components": {
-    "schemas": {},
+    "schemas": {
+      "AvailabilityResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "Normalized domain name"
+          },
+          "available": {
+            "type": ["boolean", "null"],
+            "description": "Availability when known, or null when the lookup was skipped or failed."
+          },
+          "checked_at": {
+            "type": "string",
+            "description": "UTC timestamp of the cached WHOIS check, empty string when unavailable."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ok", "invalid_domain", "rate_limited", "whois_error", "skipped_budget"]
+          }
+        },
+        "required": ["domain", "available", "checked_at", "status"]
+      },
+      "AvailabilityResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvailabilityResult"
+            }
+          }
+        },
+        "required": ["results"]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": ["error", "message"]
+      }
+    },
     "securitySchemes": {
       "BearerAuth": {
         "type": "http",
@@ -21,11 +71,11 @@
     }
   },
   "paths": {
-    "/domain/whois": {
+    "/domain/availability": {
       "get": {
-        "operationId": "whoisLookup",
-        "summary": "WHOIS lookup for a domain",
-        "description": "Check WHOIS information and availability status for a single domain.",
+        "operationId": "checkDomainAvailability",
+        "summary": "Check domain availability",
+        "description": "Check whether up to 10 distinct domains are available. Query the `domain` parameter multiple times to check several domains in a single request.",
         "security": [
           {
             "BearerAuth": []
@@ -35,28 +85,22 @@
           {
             "name": "domain",
             "in": "query",
-            "required": true,
-            "description": "Full domain name including TLD (e.g. example.com, monsite.fr).",
+            "required": false,
+            "description": "One or more full domain names including TLDs. Repeat the parameter to check multiple domains.",
+            "style": "form",
+            "explode": true,
             "schema": {
-              "type": "string"
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           {
             "name": "refresh",
             "in": "query",
             "required": false,
-            "description": "If 1, bypass cache and force a fresh WHOIS lookup. Default is 0.",
-            "schema": {
-              "type": "integer",
-              "enum": [0, 1],
-              "default": 0
-            }
-          },
-          {
-            "name": "details",
-            "in": "query",
-            "required": false,
-            "description": "If 1, populate the raw WHOIS payload in the response. All response keys are always present.",
+            "description": "If 1, bypass cache and force fresh WHOIS lookups. Default is 0.",
             "schema": {
               "type": "integer",
               "enum": [0, 1],
@@ -66,25 +110,21 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful WHOIS lookup. The response shape is always the same. Text fields are empty strings when unavailable. The raw field is only populated when details=1.",
+            "description": "Availability results for each requested domain. Partial results are returned when some domains are invalid, rate-limited, or skipped.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "domain": { "type": "string", "description": "Domain name" },
-                    "available": { "type": "boolean", "description": "Availability status" },
-                    "created_at": { "type": "string", "description": "Domain creation date, empty string if not available" },
-                    "checked_at": { "type": "string", "description": "UTC timestamp of the cached WHOIS check, empty string if unavailable" },
-                    "tld": { "type": "string", "description": "Top-level domain" },
-                    "pending_delete": { "type": "boolean" },
-                    "redemption_period": { "type": "boolean" },
-                    "statut": { "type": "string", "description": "WHOIS status, empty string if unavailable" },
-                    "registrar": { "type": "string", "description": "Registrar name, empty string if unavailable" },
-                    "raw": { "type": "string", "description": "Raw WHOIS data, only populated when details=1" }
-                  },
-                  "required": ["domain", "available", "created_at", "checked_at", "tld", "pending_delete", "redemption_period", "statut", "registrar", "raw"]
+                  "$ref": "#/components/schemas/AvailabilityResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, such as no domain provided or more than 10 distinct domains.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -96,54 +136,12 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "detail": { "type": "string", "example": "Invalid or expired token" }
+                    "detail": {
+                      "type": "string",
+                      "example": "Invalid or expired token"
+                    }
                   },
                   "required": ["detail"]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid domain",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": { "type": "string", "example": "invalid_domain" },
-                    "message": { "type": "string" }
-                  },
-                  "required": ["error", "message"]
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": { "type": "string", "example": "rate_limited" },
-                    "message": { "type": "string" }
-                  },
-                  "required": ["error", "message"]
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "WHOIS error or internal error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": { "type": "string", "example": "whois_error" },
-                    "message": { "type": "string" }
-                  },
-                  "required": ["error", "message"]
                 }
               }
             }
