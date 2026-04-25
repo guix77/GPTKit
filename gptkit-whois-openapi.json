@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "GPTKit Domain Availability API",
-    "version": "2.0.0"
+    "version": "3.0.0"
   },
   "servers": [
     {
@@ -99,17 +99,6 @@
             "description": "Full domain name including TLD.",
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "name": "refresh",
-            "in": "query",
-            "required": false,
-            "description": "If 1, bypass cache and force fresh WHOIS lookups. Default is 0.",
-            "schema": {
-              "type": "integer",
-              "enum": [0, 1],
-              "default": 0
             }
           }
         ],

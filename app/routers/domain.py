@@ -102,19 +102,17 @@ def _build_cached_result(domain: str, cached_data: CachedData) -> AvailabilityRe
 )
 async def get_availability(
     domain: str = Query(..., description="Full domain name including TLD"),
-    refresh: int = Query(0, description="Force fresh lookup (1 to refresh)"),
     token: str | None = Depends(verify_token)
 ) -> AvailabilityResult:
-    logger.info("get_availability called for domain=%s refresh=%s", domain, refresh)
+    logger.info("get_availability called for domain=%s", domain)
 
     current_domain = _normalize_domain(domain)
     if not _is_valid_domain(current_domain):
         return _build_result(current_domain, status="invalid_domain")
 
-    if refresh != 1:
-        cached_data = cache.get(current_domain)
-        if cached_data:
-            return _build_cached_result(current_domain, cached_data)
+    cached_data = cache.get(current_domain)
+    if cached_data:
+        return _build_cached_result(current_domain, cached_data)
 
     if rate_limiter.check_reason(current_domain) is not None:
         return _build_result(current_domain, status="rate_limited")

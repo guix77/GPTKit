@@ -53,7 +53,6 @@ Checks whether a single domain is available, with a response shape optimized for
 - **Endpoint**: `GET /domain/availability`
 - **Parameters**:
   - `domain` (required): Full domain name including TLD, for example `example.com` or `monsite.fr`.
-  - `refresh` (optional): `1` to bypass the cache and force a fresh WHOIS lookup.
 - **Features**:
   - Persistent cache (SQLite).
   - Rate limiting (global and per domain).
@@ -127,7 +126,7 @@ Docker Compose will automatically load variables from the `.env` file or from th
   
   # With authentication
   curl -H "Authorization: Bearer your-token-here" \
-    "http://localhost:8000/domain/availability?domain=example.fr&refresh=1"
+    "http://localhost:8000/domain/availability?domain=example.fr"
   ```
 
 - Run the unit test suite with pytest (from the project root):

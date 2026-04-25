@@ -150,29 +150,6 @@ def test_availability_cache_hit_skips_live_lookup(client):
         domain.whois_service = original_service
 
 
-def test_availability_refresh_bypasses_cache(client):
-    from app.routers import domain
-
-    domain.cache.set(
-        "cached.com",
-        "com",
-        False,
-        "Domain Name: cached.com\nCreation Date: 2021-01-01T00:00:00Z\nRegistrar: Test",
-    )
-
-    original_service = domain.whois_service
-    mock_service = MockWhoisService()
-    domain.whois_service = mock_service
-
-    try:
-        response = client.get("/domain/availability?domain=cached.com&refresh=1")
-        assert response.status_code == 200
-        assert mock_service.lookup_calls == ["cached.com"]
-        assert response.json()["status"] == "ok"
-    finally:
-        domain.whois_service = original_service
-
-
 def test_availability_invalid_domain_returns_stable_result(client):
     from app.routers import domain
 
@@ -251,7 +228,7 @@ def test_openapi_exposes_availability_endpoint_only(client):
     assert "/domain/whois" not in schema["paths"]
 
     parameters = schema["paths"]["/domain/availability"]["get"]["parameters"]
-    assert {parameter["name"] for parameter in parameters} == {"domain", "refresh"}
+    assert {parameter["name"] for parameter in parameters} == {"domain"}
     domain_parameter = next(parameter for parameter in parameters if parameter["name"] == "domain")
     assert domain_parameter["required"] is True
     assert domain_parameter["schema"]["type"] == "string"
