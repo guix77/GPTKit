@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "GPTKit Domain Availability API",
-    "version": "3.0.0"
+    "version": "4.0.0"
   },
   "servers": [
     {
@@ -23,16 +23,12 @@
             "type": ["boolean", "null"],
             "description": "Availability when known, or null when the lookup was skipped or failed."
           },
-          "checked_at": {
-            "type": "string",
-            "description": "UTC timestamp of the cached WHOIS check, empty string when unavailable."
-          },
           "status": {
             "type": "string",
             "enum": ["ok", "invalid_domain", "rate_limited", "whois_error"]
           }
         },
-        "required": ["domain", "available", "checked_at", "status"]
+        "required": ["domain", "available", "status"]
       },
       "AvailabilityResponse": {
         "type": "object",
@@ -46,16 +42,12 @@
             "type": ["boolean", "null"],
             "description": "Availability when known, or null when the lookup failed."
           },
-          "checked_at": {
-            "type": "string",
-            "description": "UTC timestamp of the cached WHOIS check, empty string when unavailable."
-          },
           "status": {
             "type": "string",
             "enum": ["ok", "invalid_domain", "rate_limited", "whois_error"]
           }
         },
-        "required": ["domain", "available", "checked_at", "status"]
+        "required": ["domain", "available", "status"]
       },
       "ErrorResponse": {
         "type": "object",

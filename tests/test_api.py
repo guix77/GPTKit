@@ -117,7 +117,6 @@ def test_availability_single_domain_success(client):
         assert result["domain"] == "example.com"
         assert result["available"] is False
         assert result["status"] == "ok"
-        assert result["checked_at"]
     finally:
         domain.whois_service = original_service
 
@@ -144,7 +143,6 @@ def test_availability_cache_hit_skips_live_lookup(client):
         assert result["domain"] == "cached.com"
         assert result["available"] is False
         assert result["status"] == "ok"
-        assert result["checked_at"]
         assert mock_service.lookup_calls == []
     finally:
         domain.whois_service = original_service
@@ -164,7 +162,6 @@ def test_availability_invalid_domain_returns_stable_result(client):
         assert response.json() == {
             "domain": "invalid",
             "available": None,
-            "checked_at": "",
             "status": "invalid_domain",
         }
         assert mock_service.lookup_calls == []
@@ -189,7 +186,6 @@ def test_availability_rate_limited_returns_stable_result(client):
         assert response.json() == {
             "domain": "one.com",
             "available": None,
-            "checked_at": "",
             "status": "rate_limited",
         }
     finally:
@@ -208,7 +204,7 @@ def test_availability_response_does_not_expose_whois_details(client):
         assert response.status_code == 200
 
         result = response.json()
-        assert set(result.keys()) == {"domain", "available", "checked_at", "status"}
+        assert set(result.keys()) == {"domain", "available", "status"}
         assert "raw" not in result
         assert "created_at" not in result
         assert "registrar" not in result

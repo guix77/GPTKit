@@ -27,7 +27,6 @@ type CachedData = dict[str, object]
 class AvailabilityResult(BaseModel):
     domain: str
     available: bool | None = None
-    checked_at: str = ""
     status: AvailabilityStatus
 
 
@@ -77,12 +76,10 @@ def _build_result(
     domain: str,
     status: AvailabilityStatus,
     available: bool | None = None,
-    checked_at: str = "",
 ) -> AvailabilityResult:
     return AvailabilityResult(
         domain=_normalize_domain(domain),
         available=available,
-        checked_at=_normalize_text(checked_at),
         status=status,
     )
 
@@ -91,7 +88,6 @@ def _build_cached_result(domain: str, cached_data: CachedData) -> AvailabilityRe
     return _build_result(
         domain=domain,
         available=_normalize_bool(cached_data.get("available")),
-        checked_at=_normalize_text(cached_data.get("checked_at")),
         status="ok",
     )
 
@@ -136,6 +132,5 @@ async def get_availability(
     return _build_result(
         current_domain,
         available=available,
-        checked_at="",
         status="ok",
     )

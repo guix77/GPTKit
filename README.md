@@ -65,7 +65,6 @@ Example response:
 {
   "domain": "example.com",
   "available": true,
-  "checked_at": "2026-04-24T12:34:56Z",
   "status": "ok"
 }
 ```
