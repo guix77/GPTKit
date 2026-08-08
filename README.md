@@ -12,7 +12,7 @@ When calling the API, include the Bearer token in the `Authorization` header:
 
 ```bash
 curl -H "Authorization: Bearer your-token-here" \
-  "https://gptkit.guillaumeduveau.com/domain/availability?domain=example.com"
+  "https://gptkit.duveau.pro/domain/availability?domain=example.com"
 ```
 
 ### Configuration
