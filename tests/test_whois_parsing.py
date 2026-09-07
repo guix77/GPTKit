@@ -53,3 +53,30 @@ def test_is_available_argent_fr():
         raw = f.read()
     service = WhoisService()
     assert service.is_available(raw, "fr") == False, "argent.fr should be detected as not available"
+
+def test_is_available_nodomain_ai():
+    """Test that a non-registered .ai domain is detected as available (Domain not found)."""
+    path = os.path.join(os.path.dirname(__file__), "data", "whois-nodomain.ai")
+    with open(path, encoding="utf-8") as f:
+        raw = f.read()
+    service = WhoisService()
+    assert service.is_available(raw, "ai") == True, "unregistered .ai domain should be detected as available"
+
+def test_is_available_google_ai():
+    """Test that google.ai is detected as not available (exists)."""
+    path = os.path.join(os.path.dirname(__file__), "data", "whois-google.ai")
+    with open(path, encoding="utf-8") as f:
+        raw = f.read()
+    service = WhoisService()
+    assert service.is_available(raw, "ai") == False, "google.ai should be detected as not available"
+
+def test_parse_whois_google_ai():
+    path = os.path.join(os.path.dirname(__file__), "data", "whois-google.ai")
+    with open(path, encoding="utf-8") as f:
+        raw = f.read()
+    result = parse_whois(raw, "ai")
+    assert result["statut"] is not None, f"statut should not be None, got {result['statut']}"
+    assert result["created_at"] == "2017-12-16T05:37:20Z"
+    assert result["registrar"] == "MarkMonitor Inc."
+    assert result["pending_delete"] == False
+    assert result["redemption_period"] == False

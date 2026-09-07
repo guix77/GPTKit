@@ -16,6 +16,8 @@ class WhoisService:
             # Use appropriate WHOIS server based on TLD
             if tld == "fr":
                 whois_server = "whois.afnic.fr"
+            elif tld == "ai":
+                whois_server = "whois.nic.ai"
             else:
                 # Default to Verisign for .com, .net, and other common TLDs
                 whois_server = "whois.verisign-grs.com"
